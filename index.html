@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>עושים שביל ומגלים משפחה</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script> <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Assistant', sans-serif;
+            background-color: #f8f9fa;
+        }
+        .trail-card {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            border: 2px solid transparent;
+        }
+        .trail-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 40, 0, 0.05);
+        }
+        .completed-card {
+            background-color: #e6fffa; /* Light teal for completed sections */
+            border-color: #38b2ac; /* Darker teal border */
+        }
+        .modal-content {
+            max-height: 90vh;
+        }
+        /* Notification style */
+        #notification-box {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 20px;
+            color: white;
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            z-index: 1000;
+            font-weight: 600;
+            min-width: 250px;
+            text-align: center;
+        }
+        #notification-box.show {
+            opacity: 1;
+        }
+        /* Style for the sharing output box */
+        .sharing-output {
+            background-color: #f3f4f6;
+            border: 1px dashed #9ca3af;
+            word-break: break-all;
+            cursor: pointer;
+        }
+        /* Sticky header fix for responsive design */
+        #controls {
+            z-index: 10;
+        }
+        /* Custom confirmation modal */
+        #confirmation-modal, #add-section-modal, #details-modal {
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+        /* Style for readonly inputs to distinguish them */
+        .input-display {
+            background-color: #f1f5f9; /* Light blue-gray background for read-only */
+            border-color: #cbd5e1;
+        }
+        /* Hide number input arrows on some browsers */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+    </style>
+</head>
+<body class="bg-stone-50 text-gray-800">
+
+    <div id="app-container" class="container mx-auto p-4 sm:p-6 md:p-8">
+
+        <header class="text-center mb-6">
+            <h1 id="dynamic-title" class="font-bold text-cyan-800" style="font-size: 16pt;">עושים שביל ומגלים משפחה</h1>
+            <p class="text-stone-600 mt-1" style="font-size: 12pt;">לזכרו של עיוש מלכה ז"ל</p>
+        </header>
+        
+        <div id="summary-panel" class="mb-8 p-4 bg-teal-600 text-white rounded-xl shadow-2xl text-center">
+            <h2 class="text-2xl font-bold mb-4 border-b border-teal-400 pb-2">סיכום התקדמות המסע</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="p-3 bg-teal-700 rounded-lg">
+                    <p class="text-lg font-semibold">מרחק כולל שבוצע</p>
+                    <p id="stat-km-done" class="text-3xl font-extrabold mt-1">0.0</p>
+                    <p id="stat-km-total" class="text-sm opacity-80">מתוך 0.0 ק"מ</p>
+                </div>
+                <div class="p-3 bg-teal-700 rounded-lg">
+                    <p class="text-lg font-semibold">אחוז מרחק</p>
+                    <p id="stat-km-percent" class="text-3xl font-extrabold mt-1">0.0%</p>
+                </div>
+                <div class="p-3 bg-teal-700 rounded-lg">
+                    <p class="text-lg font-semibold">מקטעים שבוצעו</p>
+                    <p id="stat-sections-done" class="text-3xl font-extrabold mt-1">0</p>
+                    <p id="stat-sections-total" class="text-sm opacity-80">מתוך 0 מקטעים</p>
+                </div>
+                <div class="p-3 bg-teal-700 rounded-lg">
+                    <p class="text-lg font-semibold">אחוז מקטעים</p>
+                    <p id="stat-sections-percent" class="text-3xl font-extrabold mt-1">0.0%</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="text-center mb-8">
+            <a href="https://www.google.com/maps/@33.2764011,35.7609708,15.21z/data=!4m2!6m1!1s1ojmA6DbGVQzHCYH07zpHdoXmsz4tUik?authuser=0&entry=ttu&g_ep=EgoyMDI1MDkyOC4wIKXMDSoASAFQAw%3D%3D" 
+                target="_blank" 
+                class="inline-block bg-teal-700 hover:bg-teal-800 text-white font-bold py-2 px-4 rounded-lg transition shadow-lg text-sm md:text-base">
+                🗺️ הצג את שביל ישראל במפה
+            </a>
+        </div>
+
+
+        <div id="controls" class="mb-8 p-4 bg-white rounded-lg shadow-md sticky top-0 z-10 flex flex-col gap-4">
+            
+            <div class="p-4 bg-indigo-50 rounded-lg shadow-inner">
+                <label for="custom-name-input" class="block text-sm font-medium text-gray-700 mb-2 font-bold"></label>
+                <input type="text" id="custom-name-input" placeholder="לדוגמה: משפחת לוי על שביל ישראל" 
+                        class="w-full px-4 py-2 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-right"
+                        maxlength="50">
+            </div>
+
+            <button id="create-share-link-btn" class="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold py-3 px-4 rounded-lg transition shadow-md text-lg">
+                🔗 שתף סטאטוס התקדמות עדכני
+            </button>
+            
+            <div id="sharing-container" class="p-3 bg-pink-50 rounded-lg shadow-inner hidden border border-pink-300">
+                <p class="text-sm font-semibold mb-2 text-gray-700">ההודעה המלאה (כולל סטטיסטיקות) הועתקה. ניתן להעתיק שוב מהתיבה:</p>
+                <div id="sharing-output" class="sharing-output p-2 rounded-lg text-sm text-blue-700 select-all transition hover:bg-gray-200 whitespace-pre-wrap"></div>
+                
+                <button id="shorten-link-btn" class="mt-3 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-2 rounded-lg transition shadow-md hidden">
+                    ✂️ קצר קישור (TinyURL)
+                </button>
+            </div>
+            
+            <div class="w-full">
+                <input type="text" id="search-input" placeholder="חיפוש לפי נקודת התחלה, סיום או מספר מקטע..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:outline-none">
+            </div>
+
+            <div class="flex gap-2 flex-wrap justify-center border-b pb-4">
+                <button class="filter-btn bg-cyan-700 hover:bg-cyan-700 text-white font-semibold py-2 px-4 rounded-lg transition" data-region="all">הכל</button>
+                <button class="filter-btn bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-lg transition" data-region="north">צפון</button>
+                <button class="filter-btn bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 px-4 rounded-lg transition" data-region="center">מרכז</button>
+                <button class="filter-btn bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2 px-4 rounded-lg transition" data-region="south">דרום</button>
+                <button class="filter-btn bg-teal-500 hover:bg-teal-600 text-white font-semibold py-2 px-4 rounded-lg transition" data-region="completed">בוצעו</button>
+            </div>
+            
+            <div id="admin-login-panel" class="p-3 bg-red-50 rounded-lg shadow-inner flex flex-col sm:flex-row items-center justify-between gap-3">
+                <label for="admin-password" class="text-sm font-bold text-red-700 whitespace-nowrap">סיסמת מנהל:</label>
+                <input type="password" id="admin-password" placeholder="הכנס קוד" class="flex-grow px-3 py-1 border border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none text-right text-sm">
+                <button id="admin-login-btn" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-lg transition shadow-md text-sm w-full sm:w-auto">כניסה</button>
+            </div>
+
+
+            <div id="admin-controls-container" class="pt-2 hidden flex flex-col gap-4">
+                
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    
+                    <button id="add-section-btn" class="col-span-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-2 rounded-lg transition shadow-md text-sm sm:text-base">
+                        ➕ הוסף מקטע
+                    </button>
+                    
+                    <button id="admin-lock-btn" class="col-span-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-2 rounded-lg transition shadow-md text-sm sm:text-base">
+                        🔒 נעילת מנהל
+                    </button>
+                    
+                    <button id="save-data-btn" class="bg-gray-700 hover:bg-gray-800 text-white font-semibold py-2 px-2 rounded-lg transition shadow-md text-sm sm:text-base">שמור נתונים (JSON)</button>
+                    
+                    <label for="import-file" class="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-2 rounded-lg transition cursor-pointer shadow-md text-center text-sm sm:text-base">
+                        טען קובץ נתונים
+                    </label>
+                    <input type="file" id="import-file" accept=".json" class="hidden">
+                    
+                </div>
+            </div>
+        </div>
+        
+        <main>
+             <p id="results-count" class="text-center text-stone-600 mb-6 font-semibold"></p>
+             <div id="sections-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                 
+             </div>
+        </main>
+    </div>
+
+    <div id="details-modal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 hidden">
+        <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-y-auto">
+            <div class="p-6 sm:p-8">
+                <div class="flex justify-between items-start">
+                    <div id="modal-header">
+                        <h2 id="modal-title" class="text-2xl md:text-3xl font-bold text-cyan-800 mb-1" data-section-id=""></h2>
+                        <p id="modal-subtitle" class="text-md text-stone-600"></p>
+                    </div>
+                    <button id="close-modal" class="text-3xl text-gray-500 hover:text-gray-800 transition">×</button>
+                </div>
+                <hr class="my-4">
+                
+                <div id="modal-body" class="space-y-4">
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="modal-id-input" class="font-bold text-gray-700 block mb-1">מספר מקטע:</label>
+                            <input type="number" id="modal-id-input" readonly class="w-full p-3 border border-gray-300 rounded-lg text-center font-bold input-display">
+                        </div>
+                        <div>
+                            <label for="modal-region-select" class="font-bold text-gray-700 block mb-1">אזור:</label>
+                            <select id="modal-region-select" disabled class="w-full p-3 border border-gray-300 rounded-lg input-display">
+                                <option value="north">צפון</option>
+                                <option value="center">מרכז</option>
+                                <option value="south">דרום</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label for="modal-start-input" class="font-bold text-emerald-700 block mb-1">נקודת התחלה:</label>
+                        <input type="text" id="modal-start-input" readonly class="w-full p-3 border border-gray-300 rounded-lg text-right font-semibold input-display">
+                    </div>
+                    
+                    <div>
+                        <label for="modal-end-input" class="font-bold text-orange-700 block mb-1">נקודת סיום:</label>
+                        <input type="text" id="modal-end-input" readonly class="w-full p-3 border border-gray-300 rounded-lg text-right font-semibold input-display">
+                    </div>
+                    
+                    <div>
+                        <label for="modal-km-input" class="font-bold text-stone-700 block mb-1">מרחק (ק"מ):</label>
+                        <input type="number" id="modal-km-input" step="0.1" min="0.1" readonly class="w-full p-3 border border-gray-300 rounded-lg text-right font-semibold input-display">
+                    </div>
+
+                    <div class="space-y-2 pt-2">
+                        <label for="modal-notes-input" class="font-bold text-stone-700 block">הערות/תיאור המקטע:</label>
+                        <textarea id="modal-notes-input" 
+                                    class="w-full p-3 border border-gray-300 rounded-lg resize-y input-display" 
+                                    rows="4" 
+                                    readonly
+                                    placeholder="התיאור יופיע כאן..."></textarea>
+                        <button id="save-section-changes-btn" class="hidden bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition w-full">
+                            💾 שמור שינויים במקטע
+                        </button>
+                        <button id="delete-section-btn" class="hidden mt-2 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition w-full">
+                            🗑️ מחק מקטע
+                        </button>
+                    </div>
+
+                </div>
+
+                <hr class="my-4">
+                
+                <div id="modal-footer" class="pt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
+                    
+                    <a id="waze-start-link" href="#" target="_blank" class="block bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition w-full">ניווט Waze להתחלה</a>
+                    <a id="waze-end-link" href="#" target="_blank" class="block bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition w-full">ניווט Waze לסיום</a>
+                    
+                    <button id="share-section-details-btn" class="block bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 px-4 rounded-lg transition w-full">🔗 שתף פרטי מקטע</button>
+
+                    <button id="toggle-completed-modal" data-section-id="" class="block font-bold py-2 px-4 rounded-lg transition w-full sm:col-span-3 hidden"></button>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="add-section-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden p-4">
+        <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-y-auto">
+            <div class="p-6 sm:p-8">
+                <h3 class="text-2xl font-bold text-green-700 mb-4">➕ הוספת מקטע חדש</h3>
+                <form id="add-section-form" class="space-y-4">
+                    
+                    <div>
+                        <label for="new-section-region" class="block text-sm font-medium text-gray-700 mb-1">אזור:</label>
+                        <select id="new-section-region" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none">
+                            <option value="north">צפון</option>
+                            <option value="center">מרכז</option>
+                            <option value="south">דרום</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="new-section-start" class="block text-sm font-medium text-gray-700 mb-1">נקודת התחלה:</label>
+                        <input type="text" id="new-section-start" value="התחלה חדשה" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none text-right">
+                    </div>
+                    
+                    <div>
+                        <label for="new-section-end" class="block text-sm font-medium text-gray-700 mb-1">נקודת סיום:</label>
+                        <input type="text" id="new-section-end" value="סיום חדש" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none text-right">
+                    </div>
+
+                    <div>
+                        <label for="new-section-km" class="block text-sm font-medium text-gray-700 mb-1">מרחק (ק"מ):</label>
+                        <input type="number" id="new-section-km" value="10.0" step="0.1" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none text-right">
+                    </div>
+
+                    <div>
+                        <label for="new-section-notes" class="block text-sm font-medium text-gray-700 mb-1">הערות:</label>
+                        <input type="text" id="new-section-notes" value="מקטע שהוספנו" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none text-right">
+                    </div>
+                    
+                    <hr class="my-4">
+
+                    <div>
+                        <label for="insert-before-id" class="block text-sm font-medium text-gray-700 mb-1 font-bold">הוסף לפני מקטע מספר (ID):</label>
+                        <input type="number" id="insert-before-id" min="1" required class="w-full px-4 py-2 border border-green-500 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none text-right font-bold text-lg" placeholder="לדוגמה: 50">
+                        <p class="text-xs text-gray-500 mt-1">המקטע החדש יקבל את המספר שבחרת (וכל השאר יוזזו). אם תכניס מספר גדול מהאחרון, הוא יתווסף בסוף.</p>
+                    </div>
+
+                    <div class="flex justify-end gap-3 pt-4">
+                        <button type="button" id="cancel-add-section" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg transition">ביטול</button>
+                        <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition">✅ הוסף מקטע</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="notification-box" role="status" aria-live="polite"></div>
+
+    <div id="confirmation-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+            <h3 id="confirm-title" class="text-xl font-bold text-red-700 mb-4">אישור פעולה</h3>
+            <p id="confirm-message" class="text-gray-700 mb-6">האם אתה בטוח שברצונך לבצע פעולה זו?</p>
+            <div class="flex justify-end gap-3">
+                <button id="confirm-cancel" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg transition">ביטול</button>
+                <button id="confirm-ok" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition">אישור</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // Replace these with your actual Supabase URL and anon key from the Supabase dashboard
+        const SUPABASE_URL = 'https://jkrdwdrejqwuxygeyfyj.supabase.co'; // Replace with your Supabase URL
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImprcmR3ZHJlanF3dXh5Z2V5ZnlqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0ODcwMzEsImV4cCI6MjA3NTA2MzAzMX0.Iy-hMoy3c04p8UPdbQ3rr1E1yYrcRBngBse1oLLdjAQ'; // Replace with your Supabase anon key
+        const { createClient } = supabase; // Destructure from global supabase
+        const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY); // Initialize Supabase client
+
+        // --- DATA SECTION ---
+
+        // Removed INITIAL_SECTIONS_DATA since we're loading from Supabase
+        // Global State
+        let sectionsData = [];
+        let isAdmin = false;
+        const ADMIN_PASSWORD = '1234';
+        let customTitle = document.getElementById('dynamic-title').textContent;
+        let activeFilter = 'all';
+
+        // --- UTILITY FUNCTIONS ---
+
+        /**
+         * Custom handler to replace alert() and confirm()
+         */
+        function showNotification(message, type = 'success') {
+            const box = document.getElementById('notification-box');
+            box.textContent = message;
+            box.className = 'show'; // Reset classes to remove previous colors
+            
+            let bgColor;
+            switch (type) {
+                case 'success':
+                    bgColor = 'bg-teal-600';
+                    break;
+                case 'error':
+                    bgColor = 'bg-red-600';
+                    break;
+                case 'info':
+                    bgColor = 'bg-blue-600';
+                    break;
+                default:
+                    bgColor = 'bg-gray-600';
+            }
+            box.classList.add(bgColor);
+
+            setTimeout(() => {
+                box.classList.remove('show');
+            }, 3000);
+        }
+
+        /**
+         * Custom confirmation modal implementation
+         * @param {string} message - The message to display
+         * @param {function} callback - The function to execute on confirmation
+         */
+        function showConfirmation(message, callback) {
+            const modal = document.getElementById('confirmation-modal');
+            document.getElementById('confirm-message').textContent = message;
+            modal.classList.remove('hidden');
+
+            const okBtn = document.getElementById('confirm-ok');
+            const cancelBtn = document.getElementById('confirm-cancel');
+
+            // Clear previous listeners
+            const newOkBtn = okBtn.cloneNode(true);
+            okBtn.parentNode.replaceChild(newOkBtn, okBtn);
+            const newCancelBtn = cancelBtn.cloneNode(true);
+            cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+
+            newOkBtn.addEventListener('click', () => {
+                modal.classList.add('hidden');
+                callback(true);
+            });
+
+            newCancelBtn.addEventListener('click', () => {
+                modal.classList.add('hidden');
+                callback(false);
+            });
+        }
+
+        /**
+         * Copies text to the clipboard.
+         * @param {string} text - The text to copy.
+         */
+        async function copyToClipboard(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                showNotification('הקישור/ההודעה הועתקו בהצלחה ללוח!', 'success');
+            } catch (err) {
+                // Fallback for older browsers or restricted environments
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed"; 
+                textArea.style.left = "-999999px"; 
+                textArea.style.top = "-999999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    showNotification('הקישור/ההודעה הועתקו בהצלחה ללוח!', 'success');
+                } catch (err) {
+                    showNotification('שגיאה בהעתקה או שהאורך ארוך מדי. נסה לבחור ולהעתיק ידנית.', 'error');
+                } finally {
+                    document.body.removeChild(textArea);
+                }
+            }
+        }
+
+        // --- STATE MANAGEMENT ---
+
+        /**
+         * Calculates and updates the summary statistics.
+         */
+        function updateSummary() {
+            const totalKm = sectionsData.reduce((sum, section) => sum + section.km, 0);
+            const doneKm = sectionsData.filter(s => s.completed).reduce((sum, section) => sum + section.km, 0);
+            const totalSections = sectionsData.length;
+            const doneSections = sectionsData.filter(s => s.completed).length;
+
+            const kmPercent = totalKm > 0 ? ((doneKm / totalKm) * 100).toFixed(1) : '0.0';
+            const sectionsPercent = totalSections > 0 ? ((doneSections / totalSections) * 100).toFixed(1) : '0.0';
+
+            document.getElementById('stat-km-done').textContent = doneKm.toFixed(1);
+            document.getElementById('stat-km-total').textContent = `מתוך ${totalKm.toFixed(1)} ק"מ`;
+            document.getElementById('stat-km-percent').textContent = `${kmPercent}%`;
+
+            document.getElementById('stat-sections-done').textContent = doneSections;
+            document.getElementById('stat-sections-total').textContent = `מתוך ${totalSections} מקטעים`;
+            document.getElementById('stat-sections-percent').textContent = `${sectionsPercent}%`;
+            
+            // Re-render to ensure completed status is visually updated
+            handleSearchAndFilter(); 
+        }
+
+        /**
+         * Loads data from Supabase or URL params
+         */
+        async function loadDataFromUrlOrInitial() {
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            // Try to load from Supabase first
+            let { data: sections, error } = await _supabase
+                .from('sections')
+                .select('*')
+                .order('id', { ascending: true });
+
+            if (error) {
+                console.error('Error loading from Supabase:', error);
+                showNotification('שגיאה בטעינת נתונים מ-Supabase', 'error');
+                sectionsData = []; // Fallback to empty
+            } else if (sections && sections.length > 0) {
+                sectionsData = sections.map(s => ({...s, km: parseFloat(s.km)}));
+            } else {
+                sectionsData = []; // If no data in DB, start empty or seed if needed
+            }
+
+            // Override with shared data if present in URL (for compatibility)
+            const sharedData = urlParams.get('data');
+            if (sharedData) {
+                try {
+                    const jsonString = atob(sharedData);
+                    const completedIds = JSON.parse(jsonString);
+                    sectionsData.forEach(section => {
+                        section.completed = completedIds.includes(section.id);
+                    });
+                    // Optionally, sync back to Supabase
+                    await syncCompletedToSupabase(completedIds);
+                    showNotification('נתוני ההתקדמות נטענו מהקישור המשותף!', 'info');
+                } catch (e) {
+                    console.error("Error loading shared data:", e);
+                }
+            }
+
+            // Custom title from URL or local
+            const sharedTitle = urlParams.get('title');
+            if (sharedTitle) {
+                customTitle = decodeURIComponent(sharedTitle);
+            } else {
+                customTitle = document.getElementById('dynamic-title').textContent;
+            }
+
+            document.getElementById('dynamic-title').textContent = customTitle;
+            document.getElementById('custom-name-input').value = customTitle;
+
+            updateSummary();
+        }
+
+        // Helper to sync completed status to Supabase (if using URL override)
+        async function syncCompletedToSupabase(completedIds) {
+            for (const section of sectionsData) {
+                const { error } = await _supabase
+                    .from('sections')
+                    .update({ completed: completedIds.includes(section.id) })
+                    .eq('id', section.id);
+                if (error) console.error('Sync error:', error);
+            }
+        }
+
+        /**
+         * Renders the trail sections onto the grid.
+         * @param {Array} data - The array of sections to render.
+         */
+        function renderSections(data) {
+            const grid = document.getElementById('sections-grid');
+            grid.innerHTML = ''; // Clear previous content
+
+            if (data.length === 0) {
+                document.getElementById('results-count').textContent = 'לא נמצאו מקטעים התואמים לחיפוש/סינון.';
+                return;
+            }
+
+            document.getElementById('results-count').textContent = `נמצאו ${data.length} מקטעים.`;
+
+            data.forEach(section => {
+                const isCompleted = section.completed;
+                const regionColor = {
+                    'צפון': 'bg-emerald-100 border-emerald-500 hover:bg-emerald-200',
+                    'מרכז': 'bg-orange-100 border-orange-500 hover:bg-orange-200',
+                    'דרום': 'bg-amber-100 border-amber-500 hover:bg-amber-200',
+                }[section.region];
+                
+                // Fallback for regions that might still be stored as English keys
+                const regionDisplay = section.region === 'north' ? 'צפון' : section.region === 'center' ? 'מרכז' : section.region === 'south' ? 'דרום' : section.region;
+
+                const cardHtml = `
+                    <div class="trail-card ${isCompleted ? 'completed-card border-teal-500' : regionColor} p-6 rounded-xl shadow-lg cursor-pointer flex flex-col justify-between" data-id="${section.id}">
+                        <div>
+                            <span class="text-3xl font-extrabold block mb-2 ${isCompleted ? 'text-teal-700' : 'text-cyan-800'}">מקטע ${section.id}</span>
+                            <p class="text-lg font-bold ${isCompleted ? 'text-teal-900' : 'text-gray-700'}">${section.start} ← ${section.end}</p>
+                            <p class="text-sm text-gray-600 mt-1">${section.notes || 'אין הערות נוספות.'}</p>
+                        </div>
+                        <div class="mt-4 text-left">
+                            <span class="inline-block text-sm font-bold p-1 px-3 rounded-full ${isCompleted ? 'bg-teal-400 text-white' : 'bg-gray-200 text-gray-800'}">${section.km.toFixed(1)} ק"מ</span>
+                            ${isCompleted ? '<span class="mr-2 inline-block text-sm font-bold p-1 px-3 rounded-full bg-teal-700 text-white">✅ הושלם</span>' : ''}
+                        </div>
+                    </div>
+                `;
+                grid.insertAdjacentHTML('beforeend', cardHtml);
+            });
+
+            // Reattach click listeners to new cards
+            document.querySelectorAll('.trail-card').forEach(card => {
+                card.addEventListener('click', (e) => {
+                    const id = parseInt(e.currentTarget.dataset.id);
+                    const section = sectionsData.find(s => s.id === id);
+                    if (section) openDetailsModal(section);
+                });
+            });
+        }
+
+        /**
+         * Filters the sections based on search input and filter buttons.
+         */
+        function handleSearchAndFilter() {
+            // מפת תרגום: ערך הכפתור (אנגלית - מגיע מ-activeFilter) -> ערך הנתון בבסיס הנתונים (כנראה עברית)
+            const regionMap = {
+                'north': 'צפון',
+                'center': 'מרכז',
+                'south': 'דרום'
+            };
+
+            const searchTerm = document.getElementById('search-input').value.trim().toLowerCase();
+            const currentFilter = activeFilter;
+
+            let filteredData = sectionsData;
+
+            // 1. סינון לפי אזור / סטטוס הושלם
+            if (currentFilter !== 'all') {
+                if (currentFilter === 'completed') {
+                    filteredData = filteredData.filter(s => s.completed);
+                } else {
+                    // שימוש במפה כדי למצוא את הערך הנכון לסינון
+                    const targetRegion = regionMap[currentFilter];
+                    
+                    if (targetRegion) {
+                        filteredData = filteredData.filter(s => s.region === targetRegion); 
+                    } else {
+                        // אם currentFilter הוא משהו לא צפוי (כפתור חדש למשל), או שהנתונים ב-DB עדיין באנגלית
+                        filteredData = filteredData.filter(s => s.region === currentFilter);
+                    }
+                }
+            }
+
+            // 2. סינון לפי טקסט חיפוש
+            if (searchTerm) {
+                filteredData = filteredData.filter(s => 
+                    s.start.toLowerCase().includes(searchTerm) ||
+                    s.end.toLowerCase().includes(searchTerm) ||
+                    s.notes.toLowerCase().includes(searchTerm) ||
+                    // הוספת סינון לפי שם האזור העברי
+                    s.region.includes(searchTerm) ||
+                    s.id.toString() === searchTerm // בדיקה של התאמה מדויקת ל-ID
+                );
+            }
+
+            renderSections(filteredData);
+        }
+
+        /**
+         * Toggles the 'completed' status of a section and updates Supabase.
+         * @param {number} id - The ID of the section.
+         */
+        async function toggleCompleted(id) {
+            const section = sectionsData.find(s => s.id === id);
+            if (section) {
+                const newCompleted = !section.completed;
+                const { error } = await _supabase
+                    .from('sections')
+                    .update({ completed: newCompleted })
+                    .eq('id', id);
+
+                if (error) {
+                    showNotification('שגיאה בעדכון המקטע ב-Supabase', 'error');
+                    return;
+                }
+
+                section.completed = newCompleted;
+                updateSummary();
+                showNotification(newCompleted ? 
+                    `מקטע ${id} סומן כבוצע! ישר כוח!` : 
+                    `מקטע ${id} סומן כלא בוצע.`, 
+                    newCompleted ? 'success' : 'info');
+                
+                // Close modal
+                document.getElementById('details-modal').classList.add('hidden');
+            }
+        }
+
+        // --- MODAL HANDLING ---
+
+        /**
+         * Opens and populates the details modal.
+         * @param {object} section - The section data object.
+         */
+        function openDetailsModal(section) {
+            const modal = document.getElementById('details-modal');
+            
+            // Elements to populate (read-only in view mode, editable in admin mode)
+            const titleEl = document.getElementById('modal-title');
+            const subtitleEl = document.getElementById('modal-subtitle');
+            const toggleBtn = document.getElementById('toggle-completed-modal');
+
+            // Input fields
+            const idInput = document.getElementById('modal-id-input');
+            const regionSelect = document.getElementById('modal-region-select');
+            const startInput = document.getElementById('modal-start-input');
+            const endInput = document.getElementById('modal-end-input');
+            const kmInput = document.getElementById('modal-km-input');
+            const notesInput = document.getElementById('modal-notes-input');
+            const saveBtn = document.getElementById('save-section-changes-btn');
+            const deleteBtn = document.getElementById('delete-section-btn');
+
+            // Set content and data
+            titleEl.textContent = `מקטע ${section.id}`;
+            titleEl.dataset.sectionId = section.id;
+            
+            // Logic to display region in Hebrew in subtitle
+            const regionMapDisplay = {
+                'north': 'צפון',
+                'center': 'מרכז',
+                'south': 'דרום'
+            };
+            const displayRegion = regionMapDisplay[section.region] || section.region;
+            
+            subtitleEl.textContent = `${displayRegion} | ${section.km.toFixed(1)} ק"מ`;
+
+            // Populate Input fields
+            idInput.value = section.id;
+            regionSelect.value = section.region;
+            startInput.value = section.start;
+            endInput.value = section.end;
+            kmInput.value = section.km.toFixed(1);
+            notesInput.value = section.notes;
+
+            // Setup Completion Toggle Button
+            toggleBtn.dataset.sectionId = section.id;
+            toggleBtn.classList.remove('hidden');
+            if (section.completed) {
+                toggleBtn.textContent = '❌ בטל ביצוע מקטע זה';
+                toggleBtn.className = toggleBtn.className.replace(/bg-green-/, 'bg-red-').replace(/hover:bg-green-/, 'hover:bg-red-');
+            } else {
+                toggleBtn.textContent = '✅ סמן כמקטע שבוצע';
+                toggleBtn.className = toggleBtn.className.replace(/bg-red-/, 'bg-green-').replace(/hover:bg-red-/, 'hover:bg-green-');
+            }
+
+            // Setup Waze Links
+            const baseWazeUrl = 'https://waze.com/ul?q=';
+            document.getElementById('waze-start-link').href = `${baseWazeUrl}${encodeURIComponent(section.start)}`;
+            document.getElementById('waze-end-link').href = `${baseWazeUrl}${encodeURIComponent(section.end)}`;
+
+            // Toggle Admin Editability
+            const editableInputs = [regionSelect, startInput, endInput, kmInput, notesInput];
+            editableInputs.forEach(input => {
+                if (isAdmin) {
+                    input.removeAttribute('readonly');
+                    input.removeAttribute('disabled');
+                    input.classList.remove('input-display');
+                } else {
+                    input.setAttribute('readonly', true);
+                    input.setAttribute('disabled', true);
+                    input.classList.add('input-display');
+                }
+            });
+
+            if (isAdmin) {
+                saveBtn.classList.remove('hidden');
+                deleteBtn.classList.remove('hidden');
+            } else {
+                saveBtn.classList.add('hidden');
+                deleteBtn.classList.add('hidden');
+            }
+
+            // Show the modal
+            modal.classList.remove('hidden');
+        }
+
+        // --- ADMIN AND PERSISTENCE ---
+
+        /**
+         * Toggles Admin mode based on password input.
+         * @param {string} password - The entered password.
+         */
+        function toggleAdminMode(password) {
+            const container = document.getElementById('admin-controls-container');
+            const loginPanel = document.getElementById('admin-login-panel');
+            const lockBtn = document.getElementById('admin-lock-btn');
+            const passwordInput = document.getElementById('admin-password');
+
+            if (isAdmin) {
+                // Logout
+                isAdmin = false;
+                container.classList.add('hidden');
+                loginPanel.classList.remove('hidden');
+                passwordInput.value = '';
+                lockBtn.textContent = '🔒 נעילת מנהל';
+                showNotification('מצב מנהל ננעל.', 'info');
+            } else if (password === ADMIN_PASSWORD) {
+                // Login
+                isAdmin = true;
+                container.classList.remove('hidden');
+                loginPanel.classList.add('hidden');
+                lockBtn.textContent = '🔓 יציאה ממצב מנהל';
+                passwordInput.value = ''; // Clear password field for security
+                showNotification('כניסה למצב מנהל בוצעה בהצלחה!', 'success');
+            } else {
+                showNotification('סיסמת מנהל שגויה.', 'error');
+            }
+        }
+
+        /**
+         * Saves current data to a JSON file (download). (Kept for backup, but now primary is Supabase)
+         */
+        function saveDataAsJson() {
+            const dataToSave = {
+                customTitle: customTitle,
+                sections: sectionsData.map(s => ({ 
+                    id: s.id, 
+                    region: s.region, 
+                    start: s.start, 
+                    end: s.end, 
+                    km: s.km, 
+                    notes: s.notes, 
+                    completed: s.completed 
+                }))
+            };
+            const json = JSON.stringify(dataToSave, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `FamilyTrailTracker_Backup_${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showNotification('הנתונים נשמרו כקובץ JSON.', 'success');
+        }
+        
+        /**
+         * Imports data from a JSON file and upserts to Supabase.
+         * @param {File} file - The uploaded JSON file.
+         */
+        async function importDataFromFile(file) {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const loadedContent = JSON.parse(e.target.result);
+                    if (loadedContent.sections && Array.isArray(loadedContent.sections)) {
+                        const importData = loadedContent.sections.map(s => ({
+                            ...s, 
+                            km: parseFloat(s.km)
+                        }));
+
+                        // Upsert to Supabase (insert or update based on id)
+                        const { error } = await _supabase
+                            .from('sections')
+                            .upsert(importData, { onConflict: 'id' });
+
+                        if (error) throw error;
+
+                        customTitle = loadedContent.customTitle || 'עושים שביל ומגלים משפחה';
+
+                        // Re-index if needed, but Supabase handles IDs
+                        await loadDataFromUrlOrInitial(); // Reload from DB
+
+                        document.getElementById('dynamic-title').textContent = customTitle;
+                        document.getElementById('custom-name-input').value = customTitle;
+                        showNotification('הנתונים נטענו בהצלחה מהקובץ ועודכנו ב-Supabase.', 'success');
+                    } else {
+                        throw new Error('קובץ JSON אינו מכיל את המבנה הצפוי (sections array).');
+                    }
+                } catch (error) {
+                    showNotification(`שגיאה בטעינת קובץ: ${error.message}`, 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        /**
+         * Creates a shareable URL containing the current progress data
+         * and a formatted status message.
+         * @returns {object} {link: string, message: string}
+         */
+        function generateShareContent() {
+            // 1. Calculate Summary Stats for the message
+            const totalKm = sectionsData.reduce((sum, section) => sum + section.km, 0);
+            const doneKm = sectionsData.filter(s => s.completed).reduce((sum, section) => sum + section.km, 0);
+            const totalSections = sectionsData.length;
+            const doneSections = sectionsData.filter(s => s.completed).length;
+
+            const kmPercent = totalKm > 0 ? ((doneKm / totalKm) * 100).toFixed(1) : '0.0';
+            const sectionsPercent = totalSections > 0 ? ((doneSections / totalSections) * 100).toFixed(1) : '0.0';
+
+            // 2. Prepare data for URL link (only completed IDs)
+            const dataToShare = sectionsData.filter(s => s.completed).map(s => s.id);
+            const jsonString = JSON.stringify(dataToShare);
+            const base64Data = btoa(jsonString); // Encode to Base64
+            
+            const title = encodeURIComponent(customTitle);
+
+            // Construct the full URL with Base64 data and title in query params
+            const currentUrl = window.location.origin + window.location.pathname;
+            const shareLink = `${currentUrl}?title=${title}&data=${base64Data}`;
+
+            // 3. Prepare formatted status message (for WhatsApp/text sharing)
+            // Use triple backticks for visual separation in the output box, and simple * for WhatsApp bolding
+            const message = `
+            ⭐ *עדכון התקדמות במסע - ${customTitle}* ⭐
+
+            **סיכום כללי:**
+            * מרחק שבוצע: **${doneKm.toFixed(1)} ק"מ** (מתוך ${totalKm.toFixed(1)} ק"מ)
+            * אחוז מרחק: **${kmPercent}%**
+            * מקטעים שבוצעו: **${doneSections} מקטעים** (מתוך ${totalSections} מקטעים)
+            * אחוז מקטעים: **${sectionsPercent}%**
+
+            **לצפייה בסטטוס המלא לחץ על הקישור:**
+            ${shareLink}
+            `;
+
+            return {link: shareLink, message: message.trim()};
+        }
+
+        /**
+         * Handles the click event for sharing the entire progress status,
+         * now toggling the visibility of the sharing container.
+         * לחיצה ראשונה מציגה, לחיצה שנייה מסתירה.
+         */
+        function handleShareProgressClick() {
+            const sharingContainer = document.getElementById('sharing-container');
+            
+            // 1. בדיקת מצב נוכחי: אם המיכל גלוי, הסתר אותו וצא.
+            if (!sharingContainer.classList.contains('hidden')) {
+                sharingContainer.classList.add('hidden'); // הוספת המחלקה 'hidden' כדי להסתיר
+                return; // יציאה מהפונקציה
+            }
+
+            // 2. אם המיכל מוסתר (כלומר, זו הלחיצה הראשונה):
+            // א. יצירת התוכן החדש (עם סך הק"מ שבוצעו)
+            const { link, message } = generateShareContent(); 
+            
+            // ב. הצגת ההודעה המלאה בתיבת הפלט
+            const outputBox = document.getElementById('sharing-output');
+            outputBox.textContent = message;
+            
+            // ג. הסרת המחלקה 'hidden' כדי להציג את המיכל
+            sharingContainer.classList.remove('hidden');
+
+            // ד. העתקה אוטומטית ללוח
+            copyToClipboard(message);
+        }
+        
+        /**
+         * Saves changes made to a section in the details modal (Admin only) and updates Supabase.
+         */
+        async function saveSectionChanges() {
+            const id = parseInt(document.getElementById('modal-title').dataset.sectionId);
+            const sectionIndex = sectionsData.findIndex(s => s.id === id);
+
+            if (sectionIndex === -1) {
+                showNotification('שגיאה: מקטע לא נמצא.', 'error');
+                return;
+            }
+
+            // Get values from editable inputs
+            const region = document.getElementById('modal-region-select').value;
+            const start = document.getElementById('modal-start-input').value.trim();
+            const end = document.getElementById('modal-end-input').value.trim();
+            const km = parseFloat(document.getElementById('modal-km-input').value);
+            const notes = document.getElementById('modal-notes-input').value.trim();
+
+            if (!start || !end || isNaN(km) || km <= 0) {
+                 showNotification('שדות חובה (התחלה, סיום, מרחק) חייבים להיות מלאים.', 'error');
+                 return;
+            }
+
+            // Update in Supabase
+            const { error } = await _supabase
+                .from('sections')
+                .update({ region, start, end, km, notes })
+                .eq('id', id);
+
+            if (error) {
+                showNotification('שגיאה בעדכון המקטע ב-Supabase', 'error');
+                return;
+            }
+
+            // Update local data
+            sectionsData[sectionIndex].region = region;
+            sectionsData[sectionIndex].start = start;
+            sectionsData[sectionIndex].end = end;
+            sectionsData[sectionIndex].km = km;
+            sectionsData[sectionIndex].notes = notes;
+
+            updateSummary();
+            handleSearchAndFilter();
+            document.getElementById('details-modal').classList.add('hidden');
+            showNotification(`מקטע ${id} עודכן בהצלחה!`, 'success');
+        }
+
+        /**
+         * Adds a new section based on the Add Section Modal form and inserts to Supabase.
+         */
+        async function addNewSection(e) {
+            e.preventDefault();
+            
+            const region = document.getElementById('new-section-region').value;
+            const start = document.getElementById('new-section-start').value.trim();
+            const end = document.getElementById('new-section-end').value.trim();
+            const km = parseFloat(document.getElementById('new-section-km').value);
+            const notes = document.getElementById('new-section-notes').value.trim();
+            const insertBeforeId = parseInt(document.getElementById('insert-before-id').value);
+
+            if (!start || !end || isNaN(km) || km <= 0 || isNaN(insertBeforeId) || insertBeforeId < 1) {
+                showNotification('יש למלא את כל השדות בצורה תקינה.', 'error');
+                return;
+            }
+            
+            const newSection = {
+                region,
+                start,
+                end,
+                km,
+                notes,
+                completed: false
+            };
+
+            // Insert to Supabase (id is auto-generated if serial)
+            const { data: inserted, error } = await _supabase
+                .from('sections')
+                .insert([newSection])
+                .select(); // Get the inserted row with id
+
+            if (error) {
+                showNotification('שגיאה בהוספת מקטע ל-Supabase', 'error');
+                return;
+            }
+
+            const newId = inserted[0].id;
+
+            // If insertBeforeId is specified, update IDs in DB to shift (complex, but for simplicity, reload)
+            // Note: Re-indexing in DB is tricky; for now, append and reload. Adjust if needed.
+            await loadDataFromUrlOrInitial(); // Reload from DB to get updated list
+
+            updateSummary();
+            handleSearchAndFilter();
+            document.getElementById('add-section-modal').classList.add('hidden');
+            document.getElementById('add-section-form').reset();
+            showNotification(`מקטע חדש (מספר ${newId}) נוסף בהצלחה!`, 'success');
+        }
+
+        /**
+         * Deletes a section (Admin only) from Supabase.
+         */
+        async function deleteSection(idToDelete) {
+            showConfirmation(`האם אתה בטוח שברצונך למחוק לצמיתות את מקטע מספר ${idToDelete}?`, async (confirmed) => {
+                if (confirmed) {
+                    const { error } = await _supabase
+                        .from('sections')
+                        .delete()
+                        .eq('id', idToDelete);
+
+                    if (error) {
+                        showNotification('שגיאה במחיקת המקטע ב-Supabase', 'error');
+                        return;
+                    }
+
+                    // Reload data from Supabase
+                    await loadDataFromUrlOrInitial();
+                    showNotification(`מקטע ${idToDelete} נמחק בהצלחה.`, 'success');
+                    document.getElementById('details-modal').classList.add('hidden');
+                }
+            });
+        }
+
+        // --- EVENT LISTENERS & INITIALIZATION ---
+
+        window.onload = async () => {
+            await loadDataFromUrlOrInitial();
+            handleSearchAndFilter(); // Initial render
+
+            // Admin Login/Logout
+            document.getElementById('admin-login-btn').addEventListener('click', () => {
+                const password = document.getElementById('admin-password').value;
+                toggleAdminMode(password);
+            });
+            document.getElementById('admin-lock-btn').addEventListener('click', () => {
+                toggleAdminMode(null);
+                // Also ensures read-only mode if a modal is open
+                const activeId = document.getElementById('modal-title').dataset.sectionId;
+                if (activeId) {
+                    const section = sectionsData.find(s => s.id === parseInt(activeId));
+                    if (section) openDetailsModal(section);
+                }
+            });
+            
+            // Custom Name Input Change (PUBLIC)
+            document.getElementById('custom-name-input').addEventListener('input', (e) => {
+                customTitle = e.target.value.trim() || 'עושים שביל ומגלים משפחה';
+                document.getElementById('dynamic-title').textContent = customTitle;
+            });
+
+            // Filtering
+            document.getElementById('search-input').addEventListener('input', handleSearchAndFilter);
+            document.querySelectorAll('.filter-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    activeFilter = e.target.dataset.region;
+                    // Visually mark active filter (optional, but good practice)
+                    document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('ring-4', 'ring-offset-2', 'ring-cyan-300'));
+                    e.target.classList.add('ring-4', 'ring-offset-2', 'ring-cyan-300');
+                    handleSearchAndFilter();
+                });
+            });
+            // Initial filter button selection
+            document.querySelector('.filter-btn[data-region="all"]').classList.add('ring-4', 'ring-offset-2', 'ring-cyan-300');
+
+
+            // Modals and Actions
+            document.getElementById('close-modal').addEventListener('click', () => {
+                document.getElementById('details-modal').classList.add('hidden');
+            });
+
+            document.getElementById('toggle-completed-modal').addEventListener('click', async (e) => {
+                const id = parseInt(e.currentTarget.dataset.sectionId);
+                await toggleCompleted(id);
+            });
+
+            // Admin: Save Data (JSON backup)
+            document.getElementById('save-data-btn').addEventListener('click', saveDataAsJson);
+
+            // PUBLIC: Share Progress Click Handler
+            document.getElementById('create-share-link-btn').addEventListener('click', handleShareProgressClick);
+
+            // PUBLIC: Allow copying the displayed link by clicking the output box
+            document.getElementById('sharing-output').addEventListener('click', (e) => {
+                if (e.target.textContent.length > 0) {
+                    copyToClipboard(e.target.textContent);
+                    showNotification('ההודעה המלאה הועתקה בהצלחה ללוח!', 'success');
+                }
+            });
+
+            // Admin: File Import
+            document.getElementById('import-file').addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    importDataFromFile(e.target.files[0]);
+                }
+            });
+            
+            // Admin: Add Section Modal controls
+            document.getElementById('add-section-btn').addEventListener('click', () => {
+                 document.getElementById('add-section-modal').classList.remove('hidden');
+                 // Pre-populate 'insert before' with next available ID
+                 const nextId = sectionsData.length + 1;
+                 document.getElementById('insert-before-id').value = nextId;
+            });
+            document.getElementById('cancel-add-section').addEventListener('click', () => {
+                document.getElementById('add-section-modal').classList.add('hidden');
+            });
+            document.getElementById('add-section-form').addEventListener('submit', addNewSection);
+            
+            // Admin: Save/Delete changes in Details Modal
+            document.getElementById('save-section-changes-btn').addEventListener('click', async () => await saveSectionChanges());
+            document.getElementById('delete-section-btn').addEventListener('click', () => {
+                const id = parseInt(document.getElementById('modal-title').dataset.sectionId);
+                if (id) deleteSection(id);
+            });
+            
+            // Section Share Button inside Modal
+            document.getElementById('share-section-details-btn').addEventListener('click', () => {
+                const id = parseInt(document.getElementById('modal-title').dataset.sectionId);
+                const section = sectionsData.find(s => s.id === id);
+                if (section) {
+                    const message = `
+                    **פרטי מקטע #${section.id} - ${section.start} ל-${section.end}**
+
+                    *אורך:* ${section.km.toFixed(1)} ק"מ
+                    *אזור:* ${section.region === 'north' ? 'צפון' : section.region === 'center' ? 'מרכז' : 'דרום'}
+                    *הערות:* ${section.notes || 'אין הערות.'}
+                    *סטטוס:* ${section.completed ? '✅ הושלם' : '❌ ממתין לביצוע'}
+
+                    כדי לנווט ב-Waze להתחלה: ${document.getElementById('waze-start-link').href}
+                    `;
+                    // Use a simple prompt for copying since clipboard API might fail in some contexts, but still try the copy function
+                    copyToClipboard(message.trim());
+                }
+            });
+
+            // Close modals when clicking outside
+            [document.getElementById('details-modal'), document.getElementById('add-section-modal')].forEach(modal => {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        modal.classList.add('hidden');
+                    }
+                });
+            });
+        };
+    </script>
+</body>
+</html>
