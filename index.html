@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>עושים שביל ומגלים משפחה</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script> <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script> <!-- Added Supabase JS client via CDN -->
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Assistant', sans-serif;
@@ -335,6 +336,7 @@
         // Replace these with your actual Supabase URL and anon key from the Supabase dashboard
         const SUPABASE_URL = 'https://jkrdwdrejqwuxygeyfyj.supabase.co'; // Replace with your Supabase URL
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImprcmR3ZHJlanF3dXh5Z2V5ZnlqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0ODcwMzEsImV4cCI6MjA3NTA2MzAzMX0.Iy-hMoy3c04p8UPdbQ3rr1E1yYrcRBngBse1oLLdjAQ'; // Replace with your Supabase anon key
+
         const { createClient } = supabase; // Destructure from global supabase
         const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY); // Initialize Supabase client
 
@@ -347,6 +349,13 @@
         const ADMIN_PASSWORD = '1234';
         let customTitle = document.getElementById('dynamic-title').textContent;
         let activeFilter = 'all';
+
+        // Mapping for Hebrew to English regions
+        const regionMap = {
+            'צפון': 'north',
+            'מרכז': 'center',
+            'דרום': 'south'
+        };
 
         // --- UTILITY FUNCTIONS ---
 
@@ -481,7 +490,11 @@
                 showNotification('שגיאה בטעינת נתונים מ-Supabase', 'error');
                 sectionsData = []; // Fallback to empty
             } else if (sections && sections.length > 0) {
-                sectionsData = sections.map(s => ({...s, km: parseFloat(s.km)}));
+                sectionsData = sections.map(s => ({
+                    ...s, 
+                    km: parseFloat(s.km),
+                    region: regionMap[s.region.trim()] || s.region  // Convert Hebrew to English if needed
+                }));
             } else {
                 sectionsData = []; // If no data in DB, start empty or seed if needed
             }
@@ -546,13 +559,10 @@
             data.forEach(section => {
                 const isCompleted = section.completed;
                 const regionColor = {
-                    'צפון': 'bg-emerald-100 border-emerald-500 hover:bg-emerald-200',
-                    'מרכז': 'bg-orange-100 border-orange-500 hover:bg-orange-200',
-                    'דרום': 'bg-amber-100 border-amber-500 hover:bg-amber-200',
+                    'north': 'bg-emerald-100 border-emerald-500 hover:bg-emerald-200',
+                    'center': 'bg-orange-100 border-orange-500 hover:bg-orange-200',
+                    'south': 'bg-amber-100 border-amber-500 hover:bg-amber-200',
                 }[section.region];
-                
-                // Fallback for regions that might still be stored as English keys
-                const regionDisplay = section.region === 'north' ? 'צפון' : section.region === 'center' ? 'מרכז' : section.region === 'south' ? 'דרום' : section.region;
 
                 const cardHtml = `
                     <div class="trail-card ${isCompleted ? 'completed-card border-teal-500' : regionColor} p-6 rounded-xl shadow-lg cursor-pointer flex flex-col justify-between" data-id="${section.id}">
@@ -584,44 +594,27 @@
          * Filters the sections based on search input and filter buttons.
          */
         function handleSearchAndFilter() {
-            // מפת תרגום: ערך הכפתור (אנגלית - מגיע מ-activeFilter) -> ערך הנתון בבסיס הנתונים (כנראה עברית)
-            const regionMap = {
-                'north': 'צפון',
-                'center': 'מרכז',
-                'south': 'דרום'
-            };
-
             const searchTerm = document.getElementById('search-input').value.trim().toLowerCase();
             const currentFilter = activeFilter;
 
             let filteredData = sectionsData;
 
-            // 1. סינון לפי אזור / סטטוס הושלם
+            // 1. Filter by Region/Completion Status
             if (currentFilter !== 'all') {
                 if (currentFilter === 'completed') {
                     filteredData = filteredData.filter(s => s.completed);
                 } else {
-                    // שימוש במפה כדי למצוא את הערך הנכון לסינון
-                    const targetRegion = regionMap[currentFilter];
-                    
-                    if (targetRegion) {
-                        filteredData = filteredData.filter(s => s.region === targetRegion); 
-                    } else {
-                        // אם currentFilter הוא משהו לא צפוי (כפתור חדש למשל), או שהנתונים ב-DB עדיין באנגלית
-                        filteredData = filteredData.filter(s => s.region === currentFilter);
-                    }
+                    filteredData = filteredData.filter(s => s.region === currentFilter);
                 }
             }
 
-            // 2. סינון לפי טקסט חיפוש
+            // 2. Filter by Search Term
             if (searchTerm) {
                 filteredData = filteredData.filter(s => 
                     s.start.toLowerCase().includes(searchTerm) ||
                     s.end.toLowerCase().includes(searchTerm) ||
                     s.notes.toLowerCase().includes(searchTerm) ||
-                    // הוספת סינון לפי שם האזור העברי
-                    s.region.includes(searchTerm) ||
-                    s.id.toString() === searchTerm // בדיקה של התאמה מדויקת ל-ID
+                    s.id.toString() === searchTerm // Check for exact ID match
                 );
             }
 
@@ -685,16 +678,7 @@
             // Set content and data
             titleEl.textContent = `מקטע ${section.id}`;
             titleEl.dataset.sectionId = section.id;
-            
-            // Logic to display region in Hebrew in subtitle
-            const regionMapDisplay = {
-                'north': 'צפון',
-                'center': 'מרכז',
-                'south': 'דרום'
-            };
-            const displayRegion = regionMapDisplay[section.region] || section.region;
-            
-            subtitleEl.textContent = `${displayRegion} | ${section.km.toFixed(1)} ק"מ`;
+            subtitleEl.textContent = `${section.region === 'north' ? 'צפון' : section.region === 'center' ? 'מרכז' : 'דרום'} | ${section.km.toFixed(1)} ק"מ`;
 
             // Populate Input fields
             idInput.value = section.id;
@@ -820,7 +804,8 @@
                     if (loadedContent.sections && Array.isArray(loadedContent.sections)) {
                         const importData = loadedContent.sections.map(s => ({
                             ...s, 
-                            km: parseFloat(s.km)
+                            km: parseFloat(s.km),
+                            region: regionMap[s.region.trim()] || s.region  // Convert Hebrew to English
                         }));
 
                         // Upsert to Supabase (insert or update based on id)
